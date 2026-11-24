@@ -1,0 +1,13 @@
+{
+  "name": "simple-log",
+  "version": "1.0.0",
+  "description": "A small place to write, that keeps every keystroke, works offline and publishes what you choose.",
+  "private": true,
+  "license": "MIT",
+  "engines": {"node": ">=20"},
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test test/",
+    "check": "node test/browser.check.js"
+  }
+}

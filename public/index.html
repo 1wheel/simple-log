@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="version" content="__VERSION__">
+<title>write</title>
+<link rel="manifest" href="/write/manifest.json">
+<link rel="icon" href="/write/icon-192.png">
+<link rel="apple-touch-icon" href="/write/icon-192.png">
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#111111" media="(prefers-color-scheme: dark)">
+<link rel="stylesheet" href="/write/app.css">
+</head>
+<body>
+<textarea id="text" spellcheck="true" autocapitalize="sentences" placeholder="Write." aria-label="The post"></textarea>
+
+<button id="menu-btn" class="corner" aria-label="Menu" title="Menu (Esc)">&equiv;</button>
+<div id="menu" hidden>
+  <div class="row"><button id="new">New post</button><button id="image">Add image</button><button id="replay-btn">Replay</button></div>
+  <div class="row"><label><input type="checkbox" id="public"> Public</label> <a id="public-link" target="_blank"></a></div>
+  <ul id="list"></ul>
+  <div class="row small"><a href="/">Home</a> <button id="logout" class="link">Sign out</button></div>
+</div>
+
+<div id="replay" hidden>
+  <div id="replay-text"></div>
+  <div class="controls"><button id="play">Pause</button><button id="speed">4&times;</button><input type="range" id="scrub" min="0" value="0"><button id="close-replay">Close</button></div>
+</div>
+
+<input type="file" id="file" accept="image/*" hidden>
+<footer id="foot"><button id="state" class="link">…</button> · <button id="version" class="link" title="Tap to force an update">app</button></footer>
+
+<script src="/write/ot.js"></script>
+<script src="/write/sync.js"></script>
+<script src="/write/app.js"></script>
+</body>
+</html>

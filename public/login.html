@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sign in</title>
+<style>
+:root{--fg:#111;--bg:#fff;--muted:#777}
+@media (prefers-color-scheme: dark){:root{--fg:#e8e8e8;--bg:#111;--muted:#888}}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px system-ui,sans-serif}
+form{max-width:20rem;margin:20vh auto 0;padding:0 1rem;display:flex;flex-direction:column;gap:.6rem}
+input,button{font:inherit;padding:.55rem .7rem;border:1px solid var(--fg);border-radius:0;background:var(--bg);color:var(--fg)}
+button{background:var(--fg);color:var(--bg);cursor:pointer}
+p{color:var(--muted);font-size:14px;min-height:1.2em;margin:0}
+</style>
+</head>
+<body>
+<form id="f">
+  <label for="pass">Passphrase</label>
+  <input id="pass" type="password" autocomplete="current-password" autofocus required>
+  <button>Sign in</button>
+  <p id="msg"></p>
+</form>
+<script>
+document.getElementById('f').onsubmit = async e => {
+  e.preventDefault()
+  var msg = document.getElementById('msg'), ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 15000)
+  msg.textContent = 'Checking…'
+  try {
+    var r = await fetch('/api/login', {method: 'POST', headers: {'Content-Type': 'application/json'}, signal: ctl.signal,
+      body: JSON.stringify({passphrase: document.getElementById('pass').value})})
+    var d = await r.json().catch(() => ({}))
+    if (r.ok) return location.href = '/write/'
+    msg.textContent = d.error || 'That didn\'t work (' + r.status + ').'
+  } catch (err){ msg.textContent = 'No answer from the server. Are you online?' }
+  finally { clearTimeout(timer) }
+}
+</script>
+</body>
+</html>
