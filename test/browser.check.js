@@ -117,6 +117,54 @@ test('offline typing, then sync, in a browser', {skip: !playwright && 'playwrigh
     await pub.close()
   })
 
+  await t.test('e-ink: guessed from an old Android Chrome, or set by hand', async () => {
+    var android = v => 'Mozilla/5.0 (Linux; Android 12; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/' + v + '.0.0.0 Mobile Safari/537.36'
+    var open = async (v, q) => {
+      var c = await browser.newContext({viewport: {width: 420, height: 800}, deviceScaleFactor: 2, userAgent: android(v)})
+      await c.addCookies(await ctx.cookies())
+      var p = await c.newPage()
+      p.on('pageerror', e => errors.push(e.message))
+      await p.goto(s.base + '/write/' + (q || ''))
+      await p.waitForSelector('#text')
+      return [c, p]
+    }
+    var eink = p => p.evaluate(() => document.documentElement.classList.contains('eink'))
+    var manifest = p => p.getAttribute('link[rel=manifest]', 'href')
+
+    var [c, p] = await open(111)
+    assert.equal(await eink(p), true, 'Chrome/111 on Android')
+    assert.equal(await manifest(p), '/write/manifest-eink.json')
+    await p.click('#menu-btn')
+    await p.click('#list li >> text=Sunday')   // a new device opens on a blank page
+    await until(async () => (await p.inputValue('#text')).length > 0, 'the post')
+    await p.click('#menu-btn')
+    assert.equal(await p.textContent('#eink-btn'), 'e-ink on')
+    assert.equal(await p.isVisible('#fs-btn'), true)
+    await p.screenshot({path: path.join(__dirname, '..', 'docs', 'eink.png')})
+    await p.goto(s.base + '/write/?eink=0')
+    assert.equal(await eink(p), false, '?eink=0')
+    await p.goto(s.base + '/write/')
+    assert.equal(await eink(p), false, '?eink=0 is remembered')
+    await p.click('#menu-btn')
+    await p.click('#eink-btn')
+    assert.equal(await eink(p), true, 'the switch turns it on')
+    await p.reload()
+    assert.equal(await eink(p), true, 'the switch is remembered')
+    await c.close()
+
+    ;[c, p] = await open(157)
+    assert.equal(await eink(p), false, 'Chrome/157 on Android')
+    assert.equal(await manifest(p), '/write/manifest.json')
+    await p.click('#menu-btn')
+    assert.equal(await p.textContent('#eink-btn'), 'e-ink off')
+    assert.equal(await p.isVisible('#fs-btn'), false, 'full screen is an e-ink switch')
+    await p.goto(s.base + '/write/?eink=1')
+    assert.equal(await eink(p), true, '?eink=1')
+    await p.goto(s.base + '/write/')
+    assert.equal(await eink(p), true, '?eink=1 is remembered')
+    await c.close()
+  })
+
   await t.test('the footer names the running version', async () => {
     assert.match(await page.textContent('#version'), /^app [0-9a-f]{8}$/)
     assert.deepEqual(errors, [])

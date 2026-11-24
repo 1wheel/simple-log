@@ -248,6 +248,10 @@ Sign in on the phone first (`/login`), then:
 - **iPhone (Safari):** the Share button, "Add to Home Screen". The installed app doesn't share
   Safari's sign-in, so it asks once more: tap the footer's `sign in to sync`.
 
+If their phone has an e-ink screen (a Boox, say), tell them about e-ink mode: black on white,
+nothing that animates, full screen on the first tap. It usually turns itself on; if not, the
+menu's "e-ink off" switch turns it on (or open `/write/?eink=1` once).
+
 It opens full screen like an app. **Check:** in airplane mode, open it, type a sentence (the
 footer says `offline · N edits on this device`), turn airplane mode off, tap the footer: `synced`.
 

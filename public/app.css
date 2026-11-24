@@ -28,4 +28,12 @@ button.link{border:0;padding:0;background:none;color:inherit;text-decoration:und
 #replay-text .caret{border-left:2px solid var(--fg);margin-left:-1px}
 #replay .controls{position:fixed;left:0;right:0;bottom:1.8rem;display:flex;gap:.4rem;justify-content:center;align-items:center;padding:0 1rem}
 #scrub{flex:1;max-width:24rem;accent-color:var(--fg)}
+/* e-ink: contrast, not size. Black on white, no greys, nothing that moves */
+html.eink{--fg:#000;--bg:#fff;--muted:#444;--line:#000}
+html.eink *{transition:none !important;animation:none !important;box-shadow:none !important;text-shadow:none !important}
+html.eink #list,html.eink #list li{border-color:#000}
+html.eink #text::placeholder{color:#444;opacity:1}
+html.eink ::selection{background:#000;color:#fff}
+#fs-btn{display:none}
+html.eink #fs-btn{display:inline-block}
 [hidden]{display:none !important}

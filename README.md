@@ -18,6 +18,10 @@ this folder in Claude Code and say "help me set this up". [CLAUDE.md](CLAUDE.md)
   bottom says whether everything has reached the server (`synced`, `offline · 12 edits on this
   device`, `sign in to sync`), and which version of the app is running; tap it to force an update.
 - **Replay**: the post being typed again, pauses shortened, at 1×, 4×, 16× or 64×, with a slider.
+- **E-ink** (a Boox or other e-ink phone): the editor and menu go pure black on white, with no
+  greys and nothing that animates. It turns on by itself on an old Android Chrome (below 125, as
+  Boox ships) or an e-ink model name; `?eink=1` / `?eink=0` or the menu's "e-ink" switch decide
+  for good on that device. There, the first tap also goes full screen ("full screen" switch).
 - **Public pages** (`/`, `/p/<name>`, `/feed.xml`): a title, a date, the text and its pictures.
   No scripts, no tracking.
 
@@ -48,6 +52,7 @@ public/                the writing app (served at /write/)
   ot.js                apply / diff / transform edits (also used by the server)
   sync.js              one post's unsent edits and how they catch up (also used by the tests)
   sw.js manifest.json  offline and install-to-home-screen
+  manifest-eink.json   the same, full screen, for e-ink devices
   login.html           the sign-in page
 bin/passphrase.js      set or change the passphrase, site title and address
 deploy/                setup.sh (run on the server), nginx-site.conf, simple-log.service,

@@ -187,7 +187,7 @@ async function uploadAll(){
 var menu = $('menu')
 function toggleMenu(open){
   menu.hidden = open == null ? !menu.hidden : !open
-  if (!menu.hidden){ drawMenu(); syncAll() }
+  if (!menu.hidden){ drawMenu(); drawSwitches(); syncAll() }
 }
 $('menu-btn').onclick = () => toggleMenu()
 document.addEventListener('keydown', e => { if (e.key == 'Escape' && $('replay').hidden) toggleMenu() })
@@ -233,6 +233,37 @@ $('logout').onclick = async () => {
   if ([...posts.values()].some(waiting) && !confirm('Some edits haven\'t reached the server yet. They stay on this device. Sign out anyway?')) return
   await post('/api/logout', {})
   location.href = '/login'
+}
+
+// ---- e-ink (html.eink, guessed by the script in index.html) and, there, full screen on the first tap
+
+var html = document.documentElement, fsAsked = false
+var fsWanted = () => { try { return localStorage.getItem('simple-log-fullscreen') != '0' } catch (e){ return true } }
+function drawSwitches(){
+  var on = html.classList.contains('eink')
+  $('eink-btn').textContent = on ? 'e-ink on' : 'e-ink off'
+  $('eink-btn').classList.toggle('on', on)
+  $('fs-btn').textContent = fsWanted() ? 'full screen on' : 'full screen off'
+  $('fs-btn').classList.toggle('on', fsWanted())
+}
+function fullScreen(){
+  if (fsAsked || !html.classList.contains('eink') || !fsWanted() || document.fullscreenElement || !html.requestFullscreen) return
+  fsAsked = true
+  try { html.requestFullscreen({navigationUI: 'hide'}).catch(() => {}) } catch (e){}
+}
+document.addEventListener('pointerdown', fullScreen, {capture: true, passive: true})
+$('eink-btn').onclick = () => {
+  var on = !html.classList.contains('eink')
+  window.eink(on)
+  try { localStorage.setItem('simple-log-eink', on ? '1' : '0') } catch (e){}
+  drawSwitches()
+}
+$('fs-btn').onclick = () => {
+  var on = !fsWanted()
+  try { localStorage.setItem('simple-log-fullscreen', on ? '1' : '0') } catch (e){}
+  if (on){ fsAsked = false; fullScreen() }
+  else if (document.fullscreenElement) document.exitFullscreen().catch(() => {})
+  drawSwitches()
 }
 
 // ---- replay: the post's whole log, played back at the speed it was typed (pauses shortened)

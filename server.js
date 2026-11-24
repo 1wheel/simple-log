@@ -29,7 +29,7 @@ try { config = JSON.parse(fs.readFileSync(path.join(DATA, 'config.json'), 'utf8'
 ;[POSTS, MEDIA, SITE, path.join(SITE, 'p')].forEach(d => fs.mkdirSync(d, {recursive: true}))
 
 // the app's version: a hash of its files, so any change to them reaches phones by itself
-var SHELL = ['index.html', 'app.js', 'app.css', 'ot.js', 'sync.js', 'sw.js', 'manifest.json', 'icon-192.png', 'icon-512.png']
+var SHELL = ['index.html', 'app.js', 'app.css', 'ot.js', 'sync.js', 'sw.js', 'manifest.json', 'manifest-eink.json', 'icon-192.png', 'icon-512.png']
 var VERSION = crypto.createHash('sha256').update(SHELL.map(f => fs.readFileSync(path.join(PUBLIC, f))).join('')).digest('hex').slice(0, 8)
 
 // ---- posts: all of them in memory, each one's log on disk

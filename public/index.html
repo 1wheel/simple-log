@@ -11,6 +11,26 @@
 <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#111111" media="(prefers-color-scheme: dark)">
 <link rel="stylesheet" href="/write/app.css">
+<script>
+// e-ink (a Boox and the like): html.eink, set here before anything is drawn. ?eink=1 / ?eink=0
+// or the menu's switch decide for this device; otherwise it's a guess: an old Android Chrome
+// (Boox ships an old WebView) or an e-ink model name.
+(function(){
+  var d = document.documentElement, K = 'simple-log-eink', q = /[?&]eink=([01])/.exec(location.search), set = q && q[1]
+  window.eink = function(on){
+    d.classList.toggle('eink', on)
+    document.querySelector('link[rel=manifest]').href = on ? '/write/manifest-eink.json' : '/write/manifest.json'
+  }
+  try { if (set) localStorage.setItem(K, set); else set = localStorage.getItem(K) } catch (e){}
+  if (set == '1' || set == '0') return eink(set == '1')
+  var m = /Android.*Chrome\/(\d+)\./.exec(navigator.userAgent)
+  if (m && +m[1] < 125) eink(true)
+  var u = navigator.userAgentData
+  if (u && u.getHighEntropyValues) u.getHighEntropyValues(['model']).then(function(v){
+    if (/boox|onyx|palma|leaf|poke|nova|note ?air|tab ?(ultra|mini|x)|go ?(6|7|10)/i.test(v.model || '')) eink(true)
+  }, function(){})
+})()
+</script>
 </head>
 <body>
 <textarea id="text" spellcheck="true" autocapitalize="sentences" placeholder="Write." aria-label="The post"></textarea>
@@ -19,6 +39,7 @@
 <div id="menu" hidden>
   <div class="row"><button id="new">New post</button><button id="image">Add image</button><button id="replay-btn">Replay</button></div>
   <div class="row"><label><input type="checkbox" id="public"> Public</label> <a id="public-link" target="_blank"></a></div>
+  <div class="row"><button id="eink-btn">e-ink off</button><button id="fs-btn">full screen on</button></div>
   <ul id="list"></ul>
   <div class="row small"><a href="/">Home</a> <button id="logout" class="link">Sign out</button></div>
 </div>

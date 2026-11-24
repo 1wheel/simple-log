@@ -4,7 +4,7 @@
 // the new copy in the background, and use it from the next launch.
 var VERSION = '__VERSION__'
 var CACHE = 'simple-log-' + VERSION
-var SHELL = ['/write/', '/write/app.js', '/write/app.css', '/write/ot.js', '/write/sync.js', '/write/manifest.json', '/write/icon-192.png', '/write/icon-512.png']
+var SHELL = ['/write/', '/write/app.js', '/write/app.css', '/write/ot.js', '/write/sync.js', '/write/manifest.json', '/write/manifest-eink.json', '/write/icon-192.png', '/write/icon-512.png']
 
 // every fetch gets a deadline, so a dead connection can't hang the install
 function get(url){
