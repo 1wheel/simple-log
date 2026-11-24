@@ -28,50 +28,66 @@ understanding what happened.
 - **Keep notes** in `setup-notes.txt` in this folder (gitignored): provider, server IP, domain,
   username, ssh alias, what's done. No secrets. Read it first when they come back later, and
   pick up where it says.
+- **Nothing that waits for typing.** Your Bash tool can't answer a prompt, so a command that
+  asks a question (a password, "Overwrite (y/n)?", a key passphrase) just hangs. Use the
+  non-asking forms below; anything that has to ask goes to the user, in their own terminal window.
+- **Long server commands** (`apt-get upgrade`, the first run of setup.sh) often take more than
+  2 minutes. Give them a 10-minute timeout (`timeout: 600000`) or run them in the background.
+  So that a dropped connection can't stop apt halfway, wrap them:
+  `ssh log 'sudo nohup bash -c "<command>" > /tmp/step.log 2>&1'`, then read `/tmp/step.log`.
 - Before starting, ask three things: (1) Mac, Windows or Linux? (2) do they already own a
   domain name? (3) have they used a terminal before? Adjust your explanations to the answers.
 
-On Windows, use PowerShell: `ssh`, `ssh-keygen` and `scp` are built in. Everything that's a
-bash script here runs on the server, not on their computer, except `deploy/pull-backups.sh`
-(on Windows use the `scp` line in step 15 instead).
+On Windows, your commands run in Git Bash; the user's own terminal window is PowerShell.
+`ssh`, `ssh-keygen`, `scp` and `tar` work in both. Git Bash has no rsync, so steps 7 and 13 give a
+Windows line. Everything that's a bash script here runs on the server, not on their computer,
+except `deploy/pull-backups.sh` (Mac/Linux only).
 
 ## The steps
 
 ### 1. Try it on their computer (optional, 5 minutes)
 
 Worth it if they have Node.js 20+ (`node --version`), skip it if not; the server will have Node.
+You run the tests: `node --test test/*.test.js`.
+
+The passphrase is theirs to type, so hand them this line for their own terminal window, in this folder:
 
 ```sh
-node --test test/*.test.js
 DATA_DIR=/tmp/simple-log-try node bin/passphrase.js --title "Trying it" --url http://localhost:8090
-DATA_DIR=/tmp/simple-log-try node server.js
 ```
 
-The passphrase prompt is for them to type in their own terminal. Then they open
-http://localhost:8090/login. **Check:** they can sign in and type. Stop the server afterwards.
+(Windows PowerShell: `$env:DATA_DIR="$env:TEMP\simple-log-try"; node bin/passphrase.js --title "Trying it" --url http://localhost:8090`.)
+Then you start the server in the background, `DATA_DIR=/tmp/simple-log-try node server.js`
+(Windows Git Bash: `DATA_DIR="$TEMP/simple-log-try" node server.js`), and they open http://localhost:8090/login.
+**Check:** they can sign in and type. Stop the server afterwards.
 
 ### 2. An ssh key
 
 An ssh key is a pair of files that lets their computer log in to the server without a
 password: the private one stays on their computer, the public one (`.pub`) goes on the server.
 
+You run, if `~/.ssh/simple_log` doesn't exist yet:
+
 ```sh
-ls ~/.ssh/*.pub                       # maybe they have one already
-ssh-keygen -t ed25519 -f ~/.ssh/simple_log -C simple-log
+mkdir -p ~/.ssh && chmod 700 ~/.ssh
+ssh-keygen -t ed25519 -f ~/.ssh/simple_log -C simple-log -N ""
 ```
 
-`ssh-keygen` asks for a key passphrase: they type it (or leave it empty) themselves. If they
-set one, on a Mac add it to the keychain so commands you run don't stop to ask:
-`ssh-add --apple-use-keychain ~/.ssh/simple_log`. **Check:** `cat ~/.ssh/simple_log.pub`
-prints one line starting with `ssh-ed25519`.
+`-N ""` means the key file has no passphrase of its own, which is fine here: it lives only on
+their computer, which has its own login. If they want one anyway, they run `ssh-keygen -t ed25519
+-f ~/.ssh/simple_log -C simple-log` in their own window, then (Mac) `ssh-add --apple-use-keychain
+~/.ssh/simple_log` and you add `UseKeychain yes` and `AddKeysToAgent yes` to the `Host log`
+block in step 5; otherwise every ssh command you run later hangs waiting for it.
+**Check:** `cat ~/.ssh/simple_log.pub` prints one line starting with `ssh-ed25519`.
 
 ### 3. Rent a server
 
 A VPS ("virtual private server") is a small computer in a data centre, rented by the month.
 About $5 is plenty. Either:
 
-- **Hetzner Cloud** (hetzner.com/cloud): CX22 or the cheapest shared plan, ~€4/month. Location
-  near them.
+- **Hetzner Cloud** (hetzner.com/cloud): the cheapest shared x86 plan, ~€4/month. Location
+  near them. Keep **Public IPv4** ticked (unticking saves a few cents and breaks every later
+  step). New accounts are sometimes asked for ID first, which can take hours; that's normal.
 - **DigitalOcean** (digitalocean.com): Droplet, Basic, Regular, the $6/month size.
 
 Either way: image **Ubuntu 24.04 LTS**; under SSH keys, "add key" and paste the contents of
@@ -91,13 +107,19 @@ An **A record** is one line in it: a name and the IPv4 address it goes to.
 - They can use the bare domain (`example.com`) or a subdomain (`log.example.com`); a subdomain
   is handy if the domain already has a website.
 
-In the registrar's (or DNS host's) DNS settings they add: type `A`, host/name `log` (or `@`
-for the bare domain), value the server's IPv4, TTL default/automatic. If there's already an A
-record for that name, it has to be changed, not duplicated. On Cloudflare, set the record to
-"DNS only" (grey cloud), at least until https works.
+First they delete every other record for the same name: `AAAA` (the IPv6 kind), `CNAME`,
+`ALIAS`, and "URL redirect" or parking records. New domains often come with these (Porkbun: an
+ALIAS on `@` and a CNAME on `*`; Namecheap: a URL Redirect Record on `@`). Left in place, they
+stop the new record working or make the certificate fail.
 
-**Check:** `dig +short log.example.com` (Windows: `nslookup log.example.com`) prints the
-server's IP. It can take from a minute to an hour; carry on with steps 5-8 meanwhile and check again.
+Then they add: type `A`, host/name `log` (or `@` for the bare domain), value the server's IPv4,
+TTL default/automatic. If there's already an A record for that name, change it, don't add a
+second. On Cloudflare, set the record to "DNS only" (grey cloud), at least until https works.
+
+**Check:** `dig +short log.example.com @1.1.1.1` (Windows: `nslookup log.example.com 1.1.1.1`)
+prints the server's IP. An empty answer for the first half hour is normal, not an error; carry
+on with steps 5-8 meanwhile and check again. (Asking 1.1.1.1 avoids their own computer
+remembering an early "no such name" for up to an hour.)
 
 ### 5. Log in to the server
 
@@ -134,22 +156,37 @@ Change `User root` to `User writer` in `~/.ssh/config`. **Check:** `ssh log 'who
 prints `writer` and `sudo ok`. Only then turn off root and password logins:
 
 ```sh
-ssh log 'printf "PermitRootLogin no\nPasswordAuthentication no\n" | sudo tee /etc/ssh/sshd_config.d/90-simple-log.conf && sudo sshd -t && sudo systemctl reload ssh'
+ssh log 'printf "PermitRootLogin no\nPasswordAuthentication no\n" | sudo tee /etc/ssh/sshd_config.d/01-simple-log.conf && sudo sshd -t && sudo systemctl reload ssh'
 ```
 
-**Check:** `ssh log whoami` still works, and `ssh -o BatchMode=yes root@<IP> true` is refused.
-If they ever lose their key, the provider's website has a "console" that still gets them in.
+(The `01-` matters: ssh uses the first value it reads, and cloud images often ship a
+`50-cloud-init.conf` that turns passwords back on.)
 
-Then bring the system up to date (a few minutes): `ssh log 'sudo apt-get update && sudo DEBIAN_FRONTEND=noninteractive apt-get -y upgrade'`.
+**Check:** `ssh log 'sudo sshd -T | grep -Ei "^(permitrootlogin|passwordauthentication) "'`
+prints both with `no`, and `ssh -o BatchMode=yes -o IdentitiesOnly=yes -i ~/.ssh/simple_log root@<IP> true`
+says "Permission denied". If they ever lose their key, see "Lost the ssh key" under Troubleshooting.
+
+Then bring the system up to date (a few minutes; see "Long server commands" above):
+
+```sh
+ssh log 'sudo nohup bash -c "cloud-init status --wait; apt-get -o DPkg::Lock::Timeout=600 update && DEBIAN_FRONTEND=noninteractive apt-get -y -o DPkg::Lock::Timeout=600 -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold upgrade" > /tmp/upgrade.log 2>&1'
+```
+
 Ubuntu installs security updates by itself after this (`unattended-upgrades`, on by default).
-If it says a restart is needed: `ssh log 'sudo reboot'`, wait a minute.
+Then `ssh log 'test -f /var/run/reboot-required && echo reboot'`; if it says `reboot`, run
+`ssh log 'sudo reboot'` and wait until `ssh log true` answers again.
 
 ### 7. Put the app on the server
 
 If this folder has a git remote (`git remote get-url origin`), clone it:
-`ssh log 'git clone <url> simple-log'`. If not (they downloaded a zip, or the repo is private),
-copy it: `rsync -a --exclude data --exclude .git --exclude setup-notes.txt ./ log:simple-log/`
-(Windows without rsync: `scp -r` the folder, without `data`).
+`ssh log 'git clone <url> simple-log'`. Write an ssh-style url as https first
+(`git@github.com:owner/repo.git` becomes `https://github.com/owner/repo.git`); the server has no
+GitHub key. If the clone asks for a login, the repo is private: copy instead.
+
+To copy (they downloaded a zip, or the repo is private):
+`rsync -a --exclude data --exclude .git --exclude setup-notes.txt ./ log:simple-log/`.
+Windows (Git Bash, no rsync):
+`tar --exclude=./data --exclude=./.git --exclude=./setup-notes.txt -czf - . | ssh log "mkdir -p simple-log && tar -xzf - -C simple-log"`.
 
 **Check:** `ssh log 'ls simple-log'` shows `server.js`.
 
@@ -162,11 +199,12 @@ systemd service (Ubuntu's way of keeping a program running and starting it after
 schedules the nightly backup. It is safe to run again any time; each part checks first.
 
 ```sh
-ssh log 'cd simple-log && sudo bash deploy/setup.sh log.example.com their@email.com'
+ssh log 'cd simple-log && sudo nohup bash deploy/setup.sh log.example.com > /tmp/setup.log 2>&1'; ssh log 'cat /tmp/setup.log'
 ```
 
-The email only gets certificate-expiry warnings from Let's Encrypt. The first run will say
-there's no passphrase yet and skip starting the app; and if DNS isn't ready, it skips https.
+(Give it the 10-minute timeout.) No email is needed; if they want Let's Encrypt account notices,
+put their email after the domain. The first run will say there's no passphrase yet and skip
+starting the app; and if DNS isn't ready, it skips https.
 Both are fine for now. **Check:** it ends with the health check; failures about the app and
 https are expected at this point, anything about nginx or the firewall is not.
 
@@ -176,10 +214,11 @@ This one they do themselves, in **their own terminal window**, not through you. 
 
 1. Open a new terminal window.
 2. Type `ssh log` and press Enter. (Windows: same, in PowerShell.)
-3. Type `cd simple-log && node bin/passphrase.js` and press Enter.
-4. Give the site a title, its address (`https://log.example.com`), and a passphrase twice.
-   Nothing shows while typing it; that's on purpose. Four or more random words is a good passphrase.
-   Save it in their password manager.
+3. Paste the line you give them, with their title and domain filled in by you:
+   `cd simple-log && node bin/passphrase.js --title "<title>" --url https://<domain>`
+4. Type a passphrase, Enter, the same again, Enter. Nothing shows while typing it; that's on
+   purpose. It needs 12 or more characters; four or more random words is good. Save it in
+   their password manager.
 5. Type `exit`.
 
 **Check** (without seeing it): `ssh log 'test -s simple-log/data/config.json && echo set'`.
@@ -198,14 +237,16 @@ port 80 (DigitalOcean/Hetzner "Cloud Firewall": allow TCP 80 and 443 inbound, or
 They open `https://log.example.com/login`, sign in, and write. The first line is the title.
 Show them the corner menu: New post, Add image, Replay, Public. **Check:** the footer says
 `synced`, and `ssh log 'ls simple-log/data/posts'` shows a `.jsonl` file. Have them tick
-Public and open the link; then untick it and see it 404. Posts start private.
+Public and open the link; then untick it and see it 404. Posts start private. Strangers can
+see a picture only while a public post uses it, but feed readers may keep copies of what was public.
 
 ### 12. On their phone
 
 Sign in on the phone first (`/login`), then:
 
 - **Android (Chrome):** ⋮ menu, "Add to Home screen" or "Install app".
-- **iPhone (Safari):** the Share button, "Add to Home Screen".
+- **iPhone (Safari):** the Share button, "Add to Home Screen". The installed app doesn't share
+  Safari's sign-in, so it asks once more: tap the footer's `sign in to sync`.
 
 It opens full screen like an app. **Check:** in airplane mode, open it, type a sentence (the
 footer says `offline · N edits on this device`), turn airplane mode off, tap the footer: `synced`.
@@ -216,11 +257,22 @@ Every night at 3:17 the server makes `~/backups/simple-log-<date>.tar.gz` of the
 and keeps 14 days. Make the first one now: `ssh log 'bash simple-log/deploy/backup.sh'`.
 
 A backup on the same server doesn't survive losing the server, so also copy them to their
-computer: `bash deploy/pull-backups.sh log` (Windows: `scp "log:backups/*.tar.gz" .`). Offer to
-schedule that (crontab on Mac/Linux). The provider's backups (step 3) are a third copy.
+computer: `bash deploy/pull-backups.sh log` (Windows: `mkdir -p ~/simple-log-backups && scp "log:backups/*.tar.gz" ~/simple-log-backups/`).
+Offer to schedule it daily, and on Mac/Linux do it yourself (cron on a Mac can't read
+~/Desktop or ~/Documents, so the script goes in the backups folder first):
 
-To restore: `sudo systemctl stop simple-log`, `tar -xzf simple-log-<date>.tar.gz -C ~/simple-log`,
-`sudo systemctl start simple-log`. **Check:** `ls` on their computer shows a `.tar.gz`.
+```sh
+mkdir -p ~/simple-log-backups && cp deploy/pull-backups.sh ~/simple-log-backups/
+(crontab -l 2>/dev/null; echo "0 12 * * * /bin/bash $HOME/simple-log-backups/pull-backups.sh log") | crontab -
+```
+
+A laptop that's asleep at noon skips that day, which is fine with 14 kept on the server.
+The provider's backups (step 3) are a third copy.
+
+To restore on the same server: `ssh log 'sudo systemctl stop simple-log && tar -xzf ~/backups/simple-log-<date>.tar.gz -C ~/simple-log && sudo systemctl start simple-log'`.
+On a new server: steps 5-8, then `scp <file> log:` and `ssh log 'tar -xzf simple-log-<date>.tar.gz -C ~/simple-log'`,
+then setup.sh again. No step 9: config.json is in the backup.
+**Check:** `ls ~/simple-log-backups` on their computer shows a `.tar.gz`.
 
 ### 14. The health check
 
@@ -252,17 +304,29 @@ Re-run `setup.sh` after updates that change anything in `deploy/`.
 | Browser warns "not secure" | `ssh log 'sudo certbot certificates'` | https not set up yet: re-run setup.sh once DNS works |
 | Footer says `sign in to sync` | | The 90-day sign-in ran out, or the passphrase changed. Sign in again; nothing typed is lost |
 | Footer stays `offline` | Can the phone open the site in a browser? | No connection, or the server is down (see 502) |
-| "too many tries" | | 5 wrong passphrases from one place (or 20 in all): wait 15 minutes |
+| "too many tries" | | 5 wrong passphrases from one place: wait 15 minutes |
+| "sign in over https" | `curl -sI https://<domain>/` | https isn't set up yet: step 10 |
+| `REMOTE HOST IDENTIFICATION HAS CHANGED` | | Expected after rebuilding the server at the same IP: `ssh-keygen -R <IP>`, then step 5's accept-new command |
 | Forgot the passphrase | | Step 9 again, then `sudo systemctl restart simple-log`. It signs every device out |
 | Old version on a phone | | Tap the version in the footer |
-| Lost the ssh key | | Provider's web console, log in there, add a new `.pub` to `/home/writer/.ssh/authorized_keys` |
-| Disk full | `ssh log 'df -h; du -sh ~/backups ~/simple-log/data'` | Pictures or backups. Fewer backups: `KEEP=7` in the cron line |
+| Lost the ssh key | | Step 2 for a new key. In the provider's website, "Reset root password" (Hetzner: Rescue tab; DigitalOcean: Access tab), open the console, log in as root with it, and add the new `.pub` line to `/home/writer/.ssh/authorized_keys`. (`PermitRootLogin no` is for ssh only.) |
+| Disk full | `ssh log 'df -h; du -sh ~/backups ~/simple-log/data'` | Pictures or backups. Fewer backups: `ssh log 'cd simple-log && sudo KEEP=7 bash deploy/setup.sh <domain>'` |
 
 `ssh log 'sudo journalctl -u simple-log -f'` shows the app's messages live.
 
 ## Glossary (one line each, for when a word first comes up)
 
 - **Terminal**: the window where you type commands. Mac: Terminal app. Windows: PowerShell.
+- **Node.js**: the program that runs the app's code.
+- **apt / package**: Ubuntu's app store for the command line; one program it installs.
+- **git clone / rsync**: copy a project from where it's kept online; copy a folder to another computer.
+- **Registrar**: the company you buy a domain from.
+- **TTL**: how long other computers may remember a DNS answer before asking again.
+- **IPv4 / IPv6**: the short kind of IP address (`203.0.113.7`) and the long new kind; this setup uses IPv4.
+- **Port**: a numbered door on a computer: 80 is http, 443 is https, 8090 is the app (closed to the internet).
+- **cron**: runs a command on a schedule, like the nightly backup.
+- **404 / 502**: "nothing here"; "nginx couldn't reach the app".
+- **Health check**: `deploy/health.sh`, one line per thing that should be working.
 - **Server / VPS**: a computer in a data centre that's always on, rented by the month.
 - **IP address**: the server's number on the internet, like `203.0.113.7`.
 - **Domain / DNS / A record**: a name you own; the internet's address book; the line in it that points the name at the IP.

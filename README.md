@@ -85,8 +85,11 @@ replays it and adds a picture. It leaves screenshots in `docs/`.
   `**bold**`, `*italic*`, `[links](https://…)`, `- lists`, `> quotes`, pictures.
 - One tab edits at a time on a device; a second tab is read-only.
 - Replay is for you (signed in). The full history includes text you deleted, so it isn't public.
-- A picture in a private post is private only because its name can't be guessed.
-- Five wrong passphrases from one address, or twenty from anywhere, pause new sign-ins for 15
-  minutes. Devices already signed in keep working.
+- Strangers can open a picture only while a public post uses it. Once a post has been public,
+  feed readers may have kept copies of its pictures; making it private can't take those back.
+- Five wrong passphrases from one address pause sign-ins from that address for 15 minutes.
+  Devices already signed in keep working.
+- Signing out ends the sign-in on that device only. To sign out every device (a lost phone),
+  set the passphrase again (`node bin/passphrase.js`, then restart).
 
 MIT license.

@@ -3,3 +3,7 @@ node_modules/
 *.tmp
 .env
 setup-notes.txt
+*.tar.gz
+/config.json
+.env.*
+.DS_Store

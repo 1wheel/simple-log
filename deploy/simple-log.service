@@ -1,5 +1,5 @@
 # The app as a service: starts on boot, restarts if it stops.
-# setup.sh fills in __USER__ and __APP_DIR__ and copies this to /etc/systemd/system/.
+# setup.sh fills in __USER__, __APP_DIR__ and __NODE__ and copies this to /etc/systemd/system/.
 [Unit]
 Description=simple-log
 After=network.target
@@ -8,12 +8,25 @@ After=network.target
 User=__USER__
 WorkingDirectory=__APP_DIR__
 Environment=PORT=8090
-ExecStart=/usr/bin/node server.js
+ExecStart=__NODE__ server.js
 Restart=always
 RestartSec=2
+# The app can write only its data folder: not your home folder, not its own code.
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=-__APP_DIR__/data
+UMask=0077
 NoNewPrivileges=true
 PrivateTmp=true
-ProtectSystem=full
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+LockPersonality=true
+SystemCallFilter=@system-service
+CapabilityBoundingSet=
+MemoryMax=512M
 
 [Install]
 WantedBy=multi-user.target

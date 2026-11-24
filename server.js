@@ -99,8 +99,12 @@ function writeFile(file, body){
   fs.renameSync(tmp, file)
 }
 
+// pictures in public posts are open to anyone; the rest only to the signed-in owner
+var publicMedia = new Set()
+
 function publish(){
   var pub = [...posts.values()].filter(p => p.public && p.slug).sort((a, b) => b.published - a.published)
+  publicMedia = new Set(pub.flatMap(p => [...p.text.matchAll(/\/media\/([0-9a-z]{20,40})-\d+\.jpg/g)].map(m => m[1])))
   var keep = new Set(pub.map(p => p.slug + '.html'))
   fs.readdirSync(path.join(SITE, 'p')).forEach(f => { if (!keep.has(f)) fs.unlinkSync(path.join(SITE, 'p', f)) })
   pub.forEach(p => writeFile(path.join(SITE, 'p', p.slug + '.html'), render.page(p, config, MEDIA)))
@@ -128,30 +132,45 @@ function file(res, f, headers){
 }
 var notFound = '<!doctype html><meta charset=utf-8><title>Not found</title><p style="font:18px system-ui;margin:3em auto;max-width:30em">Nothing here. <a href="/">Home</a></p>'
 
+// the request body, or null as soon as it's bigger than max (the rest isn't kept)
 function body(req, max, cb){
-  var chunks = [], size = 0
-  req.on('data', c => { size += c.length; if (size <= max) chunks.push(c) })
-  req.on('end', () => cb(size > max ? null : Buffer.concat(chunks)))
+  var chunks = [], size = 0, done = false
+  req.on('data', c => {
+    if (done) return
+    size += c.length
+    if (size <= max) return chunks.push(c)
+    done = true; chunks = []; cb(null)
+  })
+  req.on('end', () => { if (!done){ done = true; cb(Buffer.concat(chunks)) } })
 }
 
-function json(req, res, cb){
-  body(req, 8 * 1024 * 1024, buf => {
-    if (!buf) return send(res, 413, {error: 'too big'})
-    try { var data = JSON.parse(buf) } catch (e){ return send(res, 400, {error: 'not json'}) }
-    cb(data)
+// a JSON object, or a 400/413. A throw in cb is a 500, not a crash.
+function json(req, res, max, cb){
+  body(req, max, buf => {
+    if (!buf) return send(res, 413, {error: 'too big'}, null, {Connection: 'close'})
+    try { var data = JSON.parse(buf) } catch (e){}
+    if (!data || typeof data != 'object' || Array.isArray(data)) return send(res, 400, {error: 'not json'})
+    try { cb(data) } catch (e){ console.error(e); if (!res.headersSent) send(res, 500, {error: 'something broke'}) }
   })
 }
+var SMALL = 4 * 1024, BIG = 8 * 1024 * 1024
 
 var server = http.createServer((req, res) => {
   var u = new URL(req.url, 'http://x'), p = u.pathname, m
   var nocache = {'Cache-Control': 'no-cache'}
 
   // public
-  if (p == '/health') return send(res, 200, {ok: true, version: VERSION, posts: posts.size})
-  if (p == '/') return file(res, path.join(SITE, 'index.html'), nocache)
-  if (p == '/feed.xml') return file(res, path.join(SITE, 'feed.xml'), nocache)
-  if ((m = p.match(/^\/p\/([a-z0-9-]{1,80})$/))) return file(res, path.join(SITE, 'p', m[1] + '.html'), nocache)
-  if ((m = p.match(media.NAME))) return file(res, path.join(MEDIA, m[1]), {'Cache-Control': 'public, max-age=31536000, immutable'})
+  // the public pages have no scripts, and say so
+  var site = Object.assign({'Content-Security-Policy': "script-src 'none'"}, nocache)
+  if (p == '/health') return send(res, 200, {ok: true, version: VERSION})
+  if (p == '/') return file(res, path.join(SITE, 'index.html'), site)
+  if (p == '/feed.xml') return file(res, path.join(SITE, 'feed.xml'), site)
+  if ((m = p.match(/^\/p\/([a-z0-9-]{1,80})$/))) return file(res, path.join(SITE, 'p', m[1] + '.html'), site)
+  if ((m = p.match(media.NAME))){
+    if (publicMedia.has(m[1].split('-')[0])) return file(res, path.join(MEDIA, m[1]), {'Cache-Control': 'public, max-age=86400'})
+    if (auth.signedIn(req, config)) return file(res, path.join(MEDIA, m[1]), {'Cache-Control': 'private, max-age=31536000, immutable'})
+    return send(res, 404, notFound, TYPES['.html'])
+  }
   if (p == '/login') return file(res, path.join(PUBLIC, 'login.html'), nocache)
   if (p == '/write') return send(res, 301, '', 'text/plain', {Location: '/write/'})
   if (p == '/write/') return file(res, path.join(PUBLIC, 'index.html'), nocache)
@@ -167,7 +186,12 @@ var server = http.createServer((req, res) => {
     if (!/^application\/json\b/.test(type) && !(p.startsWith('/api/media/') && type == 'image/jpeg'))
       return send(res, 415, {error: 'send json'})
   }
-  if (p == '/api/login' && req.method == 'POST') return json(req, res, d => auth.login(req, res, d, config, send))
+  if (p == '/api/login' && req.method == 'POST'){
+    // nginx says when a request came over plain http; a passphrase should never travel that way
+    if (req.headers['x-forwarded-proto'] == 'http')
+      return send(res, 400, {error: 'sign in over https'})
+    return json(req, res, SMALL, d => auth.login(req, res, d, config, send))
+  }
   if (p == '/api/logout' && req.method == 'POST') return send(res, 200, {ok: true}, null, {'Set-Cookie': auth.clearCookie()})
   if (!auth.signedIn(req, config)) return send(res, 401, {error: 'sign in'})
 
@@ -184,7 +208,7 @@ var server = http.createServer((req, res) => {
   }
   if (req.method != 'POST') return send(res, 405, {error: 'no'})
 
-  if (m[2] == '/public') return json(req, res, d => {
+  if (m[2] == '/public') return json(req, res, SMALL, d => {
     if (!post) return send(res, 404, {error: 'write something first'})
     var ops = [{t: Date.now(), pos: 0, del: '', ins: '', meta: {public: !!d.public}}]
     if (d.public && !post.slug) ops.push({t: Date.now(), pos: 0, del: '', ins: '', meta: {slug: slugFor(post)}})
@@ -193,7 +217,7 @@ var server = http.createServer((req, res) => {
   })
 
   // a batch of edits: {base, bid, ops}. base is the head the ops were typed against.
-  json(req, res, d => {
+  json(req, res, BIG, d => {
     if (!Number.isInteger(d.base) || typeof d.bid != 'string' || !/^[0-9a-z]{2,40}$/.test(d.bid)
       || !Array.isArray(d.ops) || !d.ops.length || !d.ops.every(validOp)) return send(res, 400, {error: 'bad batch'})
     var head = post ? post.head : 0

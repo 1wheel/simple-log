@@ -34,12 +34,13 @@ function ask(q, hidden){
   if (!title) title = tty ? (await ask('Site title (e.g. Notes): ')).trim() || 'Notes' : 'Notes'
   if (!url) url = tty ? (await ask('Site address (e.g. https://log.example.com): ')).trim() : 'http://localhost:8090'
   url = url.replace(/\/+$/, '')
+  if (!/^https?:\/\/[^\s/]+$/.test(url)){ console.error('The address should look like https://log.example.com. Nothing changed.'); process.exit(1) }
 
-  var pass = await ask('New passphrase (4+ words is good): ', true)
+  var pass = await ask('New passphrase (12+ characters; 4+ random words is good): ', true)
   if (tty && (await ask('Same again: ', true)) != pass){ console.error('Those were different. Nothing changed.'); process.exit(1) }
   if (pass.length < 12){ console.error('Use at least 12 characters. Nothing changed.'); process.exit(1) }
 
-  fs.mkdirSync(DATA, {recursive: true})
+  fs.mkdirSync(DATA, {recursive: true, mode: 0o700})
   var config = {title, url, hash: auth.hash(pass), secret: crypto.randomBytes(32).toString('hex')}
   fs.writeFileSync(FILE + '.tmp', JSON.stringify(config, null, 2) + '\n', {mode: 0o600})
   fs.renameSync(FILE + '.tmp', FILE)

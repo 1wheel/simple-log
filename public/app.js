@@ -42,6 +42,8 @@ var save = p => (saving = saving.then(() => idb('posts', s => s.put(JSON.parse(J
 
 var posts = new Map()   // id -> {id, head, text, fly, pend, public, slug, edited}
 var cur = null
+// n random letters and digits (bytes of 252 and up are thrown away, so each of the 36 is as likely)
+var randomId = n => { var s = ''; while (s.length < n) for (var x of crypto.getRandomValues(new Uint8Array(n))) if (x < 252 && s.length < n) s += (x % 36).toString(36); return s }
 var newId = () => Date.now().toString(36) + Array.from(crypto.getRandomValues(new Uint8Array(10)), b => (b % 36).toString(36)).join('')
 var titleOf = text => (text.split('\n').map(l => l.trim()).find(l => l) || 'Untitled').replace(/^#+\s*/, '').slice(0, 80)
 var waiting = p => p.pend.length + (p.fly ? p.fly.ops.length : 0)
@@ -152,7 +154,7 @@ async function open(id){
 var SIZES = [640, 1280, 2400]
 async function addImage(file){
   var img = await createImageBitmap(file, {imageOrientation: 'from-image'})
-  var long = Math.max(img.width, img.height), id = newId() + newId().slice(0, 8)
+  var long = Math.max(img.width, img.height), id = randomId(20)
   var made = SIZES.filter(s => s <= long)
   if (!made.length) made = [640]
   for (var s of made){

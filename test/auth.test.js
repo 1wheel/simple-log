@@ -56,6 +56,46 @@ test('auth', async t => {
     assert.equal(rs.filter(r => r.status == 429).length, 7)
   })
 
+  await t.test('strangers guessing from many addresses cannot lock the owner out', async () => {
+    for (var n = 30; n < 34; n++) for (var i = 0; i < 5; i++) assert.equal((await s.login('guess ' + i, '10.0.0.' + n)).status, 401)
+    assert.equal((await s.login(PASS, '10.0.0.40')).status, 200)
+  })
+
+  await t.test('one IPv6 /64 counts as one address', async () => {
+    for (var i = 0; i < 5; i++) assert.equal((await s.login('guess', '2001:db8:1:2::' + (i + 1).toString(16))).status, 401)
+    assert.equal((await s.login(PASS, '2001:db8:1:2:ffff::9')).status, 429)
+    assert.equal((await s.login(PASS, '2001:db8:1:3::1')).status, 200)
+  })
+
+  await t.test('bodies that are not a JSON object get a 400, and the server stays up', async () => {
+    for (var bad of ['null', '[]', '1', '"x"', 'true']){
+      var r = await s.fetch('/api/login', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: bad})
+      assert.equal(r.status, 400, bad)
+      r = await s.fetch('/api/posts/abcdefgh12', {method: 'POST', headers: {Cookie: s.cookie, 'Content-Type': 'application/json'}, body: bad})
+      assert.equal(r.status, 400, bad)
+      r = await s.fetch('/api/posts/abcdefgh12/public', {method: 'POST', headers: {Cookie: s.cookie, 'Content-Type': 'application/json'}, body: bad})
+      assert.equal(r.status, 400, bad)
+    }
+    assert.equal((await s.fetch('/health')).status, 200)
+  })
+
+  await t.test('a big body to the login is refused early', async () => {
+    var r = await s.fetch('/api/login', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({passphrase: 'x'.repeat(100000)})})
+    assert.equal(r.status, 413)
+    assert.equal((await s.fetch('/health')).status, 200)
+  })
+
+  await t.test('no signing in over plain http', async () => {
+    var r = await s.fetch('/api/login', {method: 'POST', headers: {'Content-Type': 'application/json', 'X-Forwarded-Proto': 'http', 'X-Real-IP': '10.0.0.50'}, body: JSON.stringify({passphrase: PASS})})
+    assert.equal(r.status, 400)
+    assert.equal(r.headers.get('set-cookie'), null)
+  })
+
+  await t.test('the public health check says nothing about how many posts there are', async () => {
+    var d = await (await s.fetch('/health')).json()
+    assert.equal(d.ok, true); assert.ok(!('posts' in d))
+  })
+
   await t.test('signing out clears the cookie', async () => {
     var r = await s.fetch('/api/logout', {method: 'POST', headers: {Cookie: s.cookie, 'Content-Type': 'application/json'}, body: '{}'})
     assert.match(r.headers.get('set-cookie'), /Max-Age=0/)

@@ -8,6 +8,7 @@
 #
 # To restore: sudo systemctl stop simple-log; tar -xzf <file> -C ~/simple-log; sudo systemctl start simple-log
 set -euo pipefail
+umask 077   # the backup holds private posts and the config secret
 APP_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 DEST="${BACKUP_DIR:-$HOME/backups}"
 KEEP="${KEEP:-14}"

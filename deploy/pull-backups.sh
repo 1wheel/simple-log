@@ -3,8 +3,9 @@
 #
 #   bash deploy/pull-backups.sh you@log.example.com            -> ~/simple-log-backups/
 #
-# To do it every day on a Mac or Linux laptop, add to `crontab -e`:
-#   0 12 * * * bash /path/to/simple-log/deploy/pull-backups.sh you@log.example.com
+# To do it every day on a Mac or Linux laptop, copy this file to ~/simple-log-backups/ (cron on
+# a Mac can't read ~/Desktop or ~/Documents) and add a line to your crontab:
+#   (crontab -l 2>/dev/null; echo "0 12 * * * /bin/bash $HOME/simple-log-backups/pull-backups.sh log") | crontab -
 set -euo pipefail
 HOST="${1:?Usage: bash deploy/pull-backups.sh you@your-domain}"
 DEST="${2:-$HOME/simple-log-backups}"
